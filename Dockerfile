@@ -5,7 +5,7 @@ WORKDIR /app
 COPY . .
 
 RUN go mod vendor \
-    && cd vendor\gocv.io\x\gocv \
+    && cd vendor/gocv.io/x/gocv \
     && make install \
     && cd - \
     && go build -o main
