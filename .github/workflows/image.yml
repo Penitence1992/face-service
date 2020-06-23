@@ -1,0 +1,48 @@
+name: Image
+
+on:
+  push:
+    branches: [ master ]
+    tags: ["*"]
+jobs:
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+
+      - name: Extract branch name
+        shell: bash
+        run: |
+          echo "##[set-output name=releaseName;]$(if [ "${GITHUB_REF##*/}" = "master" ]; then echo "latest"; else echo "${GITHUB_REF##*/}"; fi)"
+          echo "##[set-output name=buildStamp;]"$(date -u '+%Y-%m-%d_%I:%M:%S%p')
+          DOCKER_PLATFORMS=linux/arm64,linux/amd64
+          echo ::set-output name=buildx_args::--platform ${DOCKER_PLATFORMS} \
+            --output "type=image,push=false" \
+            --build-arg gitCommit=${GITHUB_SHA::8} \
+            --build-arg buildStamp=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+            .
+        id: args
+
+      - name: echo debug msg
+        run: |
+          echo "build ${{ github.ref }} tag image"
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: crazy-max/ghaction-docker-buildx@v3
+        with:
+          buildx-version: latest
+          qemu-version: latest
+
+      - name: Docker login
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          echo "${DOCKER_PASSWORD}" | docker login --username "${DOCKER_USERNAME}" --password-stdin
+      - name: Run buildx and push
+        run: |
+          docker buildx build -t penitence/ddns:${{ steps.args.outputs.releaseName }} ${{ steps.args.outputs.buildx_args }}
+
